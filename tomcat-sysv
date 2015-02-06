@@ -1,0 +1,191 @@
+#! /bin/bash
+### BEGIN INIT INFO
+# Provides:          tomcat-user 
+# Required-Start:    $remote_fs $syslog
+# Required-Stop:     $remote_fs $syslog
+# Default-Start:     2 3 4 5
+# Default-Stop:      0 1 6
+# Short-Description: Starts a user provided tomcat application server as configurable user
+# Description:       Starts a user provided tomcat application server as configurable user
+#                    and is to be placed in /etc/init.d.
+### END INIT INFO
+
+# NOTE: do not forget to set "Provides:" above to the correct name of the service
+#       $NAME from below, this can not be a variable, as the script is parsed
+#       for the INIT block and not executed
+
+# (c)2014 Michael Gebetsroither <mgebetsroither@mgit.at>
+
+# PATH should only include /usr/* if it runs after the mountnfs.sh script
+PATH=/sbin:/usr/sbin:/bin:/usr/bin
+NAME=$(basename $(readlink -f $0))
+DESC="${NAME} service"
+SCRIPTNAME=/etc/init.d/$NAME
+
+# Read configuration from file
+#
+# eg. for startup through user wrapper script (prefered)
+#
+# APPUSER=liferay
+# SERVICE_SCRIPT="/srv/bin/bin/liferaynode"
+# dir_="/run/liferay"
+# if [ ! -d "$dir_" ]; then
+#     mkdir "$dir_"
+#     chmod 750 "$dir_"
+#     chown liferay:liferay "$dir_"
+# fi
+#
+#
+# eg. for direct catalina.sh startup
+#
+# APPUSER=liferay
+# PIDFILE=/run/liferay/pid
+# START="/srv/liferay/tomcat/bin/startup.sh start"
+# STOP="/srv/liferay/tomcat/bin/shutdown.sh stop 30 -force"
+# dir_="/run/liferay"
+# if [ ! -d "$dir_" ]; then
+#     mkdir "$dir_"
+#     chmod 750 "$dir_"
+#     chown liferay:liferay "$dir_"
+# fi
+# # Java configs
+# export CATALINA_PID="$PIDFILE"
+# export JAVA_HOME="/usr/lib/jvm/j2sdk1.7-oracle"
+# export JAVA_OPTS=""
+[ -r /etc/default/$NAME ] && . /etc/default/$NAME
+
+die() {
+    echo "$@" >&2
+    exit 1
+}
+
+if [[ $APPUSER == "" ]]; then
+    die "Error: APPUSER must be set in /etc/default/$NAME"
+fi
+
+if [[ $SERVICE_SCRIPT == "" ]] && [[ $START == "" || $STOP == "" ]]; then
+    die "Error: either SERVICE_SCRIPT or the individual CMDs must be set in /etc/default/$NAME"
+fi
+if [[ $START == "" ]]; then
+    START="$SERVICE_SCRIPT start"
+fi
+if [[ $STOP == "" ]]; then
+    STOP="$SERVICE_SCRIPT stop"
+fi
+if [[ $PIDFILE == "" ]]; then
+    if [[ $STATUS == "" ]]; then
+        if [[ $SERVICE_SCRIPT == "" ]]; then
+            die "Error: for status to work either PIDFILE, STATUS or SERVICE_SCRIPT is needed in /etc/default/$NAME"
+        fi
+        STATUS="$SERVICE_SCRIPT status"
+    fi
+fi
+
+# Load the VERBOSE setting and other rcS variables
+. /lib/init/vars.sh
+
+# Define LSB log_* functions.
+# Depend on lsb-base (>= 3.2-14) to ensure that this file is present
+# and status_of_proc is working.
+. /lib/lsb/init-functions
+
+#
+# Function that starts the daemon/service
+#
+do_start()
+{
+	# Return
+	#   0 if daemon has been started
+	#   1 if daemon was already running
+	#   2 if daemon could not be started
+
+    su -c "$START" "$APPUSER"
+}
+
+#
+# Function that stops the daemon/service
+#
+do_stop()
+{
+	# Return
+	#   0 if daemon has been stopped
+	#   1 if daemon was already stopped
+	#   2 if daemon could not be stopped
+	#   other if a failure occurred
+
+    su -c "$STOP" "$APPUSER"
+}
+
+do_status()
+{
+    su -c "$STATUS" "$APPUSER"
+}
+
+
+case "$1" in
+  start)
+	[ "$VERBOSE" != no ] && log_daemon_msg "Starting $DESC" "$NAME"
+    echo
+	do_start
+	case "$?" in
+		0|1) [ "$VERBOSE" != no ] && log_end_msg 0 ;;
+		2) [ "$VERBOSE" != no ] && log_end_msg 1 ;;
+	esac
+	;;
+  stop)
+	[ "$VERBOSE" != no ] && log_daemon_msg "Stopping $DESC" "$NAME"
+    echo
+	do_stop
+	case "$?" in
+		0|1) [ "$VERBOSE" != no ] && log_end_msg 0 ;;
+		2) [ "$VERBOSE" != no ] && log_end_msg 1 ;;
+	esac
+	;;
+  status)
+    if [[ $PIDFILE == "" ]]; then
+        do_status && exit 0 || exit $?
+    else
+        status_of_proc -q "$PIDFILE" && exit 0 || exit $?
+    fi
+	;;
+  #reload|force-reload)
+	#
+	# If do_reload() is not implemented then leave this commented out
+	# and leave 'force-reload' as an alias for 'restart'.
+	#
+	#log_daemon_msg "Reloading $DESC" "$NAME"
+	#do_reload
+	#log_end_msg $?
+	#;;
+  restart|force-reload)
+	#
+	# If the "reload" option is implemented then remove the
+	# 'force-reload' alias
+	#
+	log_daemon_msg "Restarting $DESC" "$NAME"
+    echo
+	do_stop
+	case "$?" in
+	  0|1)
+		do_start
+		case "$?" in
+			0) log_end_msg 0 ;;
+			1) log_end_msg 1 ;; # Old process is still running
+			*) log_end_msg 1 ;; # Failed to start
+		esac
+		;;
+	  *)
+		# Failed to stop
+		log_end_msg 1
+		;;
+	esac
+	;;
+  *)
+	#echo "Usage: $SCRIPTNAME {start|stop|restart|reload|force-reload}" >&2
+	#echo "Usage: $SCRIPTNAME {start|stop|status|restart|force-reload}" >&2
+	echo "Usage: $SCRIPTNAME {start|stop|status|restart|force-reload}" >&2
+	exit 3
+	;;
+esac
+
+:
