@@ -145,7 +145,7 @@ case "$1" in
     if [[ $PIDFILE == "" ]]; then
         do_status && exit 0 || exit $?
     else
-        status_of_proc -q "$PIDFILE" && exit 0 || exit $?
+        status_of_proc -p "$PIDFILE" && exit 0 || exit $?
     fi
 	;;
   #reload|force-reload)
